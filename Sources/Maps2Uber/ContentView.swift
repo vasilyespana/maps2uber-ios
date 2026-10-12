@@ -80,8 +80,8 @@ struct ContentView: View {
                 case .success(let dest):
                     submittedURL = url
                     destination = dest
-                case .failure(let msg):
-                    error = msg
+                case .failure(let failure):
+                    error = failure.message
                 }
             }
         }
