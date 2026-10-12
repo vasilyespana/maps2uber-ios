@@ -28,6 +28,8 @@ targets:
       path: Resources/Info.plist
       properties:
         CFBundleDisplayName: Map2Ride
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen: {}
         ITSAppUsesNonExemptEncryption: false
         # Schemes probed with canOpenURL to detect installed provider
