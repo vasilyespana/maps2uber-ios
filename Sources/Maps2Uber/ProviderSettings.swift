@@ -50,8 +50,16 @@ final class ProviderSettings: ObservableObject {
 
     func setPrimary(_ id: String) {
         guard RideProviders.selectable.contains(where: { $0.id == id }) else { return }
+        let changed = id != primaryId
         primaryId = id
         defaults.set(id, forKey: Keys.primary)
+        if changed {
+            // Provider-choice telemetry: which provider people make primary.
+            NetworkService.shared.reportClickEvent(
+                event: ClickEvents.settingsDefaultProviderChange,
+                provider: id, surface: ClickEvents.surfaceSettings,
+                position: nil, url: nil)
+        }
         if secondId == id {
             // Primary moved onto the second provider: re-home the second.
             secondId = RideProviders.defaultSecond(forPrimary: id)
