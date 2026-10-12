@@ -1,5 +1,12 @@
 import Foundation
 
+/// Failure type for resolve calls. (The pre-revival code used
+/// `Result<Destination, String>`, which never compiled — `String` does
+/// not conform to `Error`. That is why the v1.0.0 CI run failed.)
+struct ResolveFailure: Error {
+    let message: String
+}
+
 /// Talks to the Maps2Uber Cloudflare worker. All telemetry is fire-and-forget.
 final class NetworkService {
     static let shared = NetworkService()
@@ -8,9 +15,9 @@ final class NetworkService {
 
     // MARK: - Resolve
 
-    func resolve(url: String) async -> Result<Destination, String> {
+    func resolve(url: String) async -> Result<Destination, ResolveFailure> {
         guard let reqURL = URL(string: "\(base)/api/resolve?url=\(url.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? url)") else {
-            return .failure("Bad request.")
+            return .failure(ResolveFailure(message: "Bad request."))
         }
         do {
             let (data, _) = try await session.data(from: reqURL)
@@ -27,12 +34,12 @@ final class NetworkService {
             } else {
                 let err = r.error ?? "Could not resolve that link."
                 reportFailure(url: url, error: err)
-                return .failure(err)
+                return .failure(ResolveFailure(message: err))
             }
         } catch {
             let msg = "Network error. Try again."
             reportFailure(url: url, error: msg)
-            return .failure(msg)
+            return .failure(ResolveFailure(message: msg))
         }
     }
 

@@ -1,6 +1,9 @@
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var settings = ProviderSettings()
+    @StateObject private var location = LocationProvider()
+
     @State private var mapsURL = ""
     @State private var isLoading = false
     @State private var error: String?
@@ -10,9 +13,9 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 16) {
-                Text("📍 Maps → Uber")
+                Text("📍 Map2Ride")
                     .font(.largeTitle.bold())
-                Text("Paste a Google Maps link, get an Uber deep link to that exact spot — plus 10 probes on a 100 m circle to compare prices.")
+                Text("Paste a Google Maps link, get ride links to that exact spot in \(settings.primary.name) and \(settings.second.name) — plus 10 probes on a 100 m circle to compare prices.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -38,8 +41,19 @@ struct ContentView: View {
                 Spacer()
             }
             .padding()
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        SettingsView(settings: settings)
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityLabel("Settings")
+                }
+            }
             .navigationDestination(item: $destination) { dest in
-                ResultsView(destination: dest, mapURL: submittedURL)
+                ResultsView(destination: dest, mapURL: submittedURL,
+                            settings: settings, pickup: location.current)
             }
             .onAppear {
                 // Offer clipboard contents if it looks like a Maps link.
@@ -48,6 +62,7 @@ struct ContentView: View {
                    clip.contains("google.com/maps") || clip.contains("goo.gl") {
                     mapsURL = clip
                 }
+                location.requestCurrentLocation()
             }
         }
     }
@@ -65,8 +80,8 @@ struct ContentView: View {
                 case .success(let dest):
                     submittedURL = url
                     destination = dest
-                case .failure(let msg):
-                    error = msg
+                case .failure(let failure):
+                    error = failure.message
                 }
             }
         }

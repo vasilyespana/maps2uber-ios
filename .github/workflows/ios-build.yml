@@ -1,7 +1,28 @@
 name: iOS build
 
+# Map2Ride for iOS.
+# - PRs and pushes to main: build + unit tests on the macOS runner's
+#   iPhone Simulator, plus the UNSIGNED IPA artifact.
+# - Version tags (v*): the same, and the IPA is attached to a GitHub
+#   Release so the SideStore source feed (apps.json) can point at a
+#   login-free download URL. See INSTALL-FREE.md.
+
 on:
+  pull_request:
+    paths:
+      - "Sources/**"
+      - "Tests/**"
+      - "Resources/**"
+      - "project.yml"
+      - ".github/workflows/ios-build.yml"
   push:
+    branches: [main]
+    paths:
+      - "Sources/**"
+      - "Tests/**"
+      - "Resources/**"
+      - "project.yml"
+      - ".github/workflows/ios-build.yml"
     tags:
       - "v*"
   workflow_dispatch:
@@ -17,13 +38,53 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      # Deliberately NO Xcode pin: the macos-15 image's simulator
+      # runtimes match its default Xcode. (The pre-revival workflow
+      # pinned Xcode 16.2; the CallPages project hit actool failures
+      # from exactly that pin.)
+
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+      - name: Build + unit tests (iPhone Simulator)
+        run: |
+          set -o pipefail
+          # The runner image ships runtimes but no pre-created devices:
+          # create one for the selected Xcode's own iOS SDK version.
+          SDK_VER=$(xcrun --sdk iphonesimulator --show-sdk-version)
+          RUNTIME_ID=$(xcrun simctl list -j runtimes | python3 -c "
+          import json, sys
+          sdk = sys.argv[1]
+          d = json.load(sys.stdin)
+          matches = [r for r in d['runtimes'] if r['version'] == sdk and r.get('isAvailable', True)]
+          print(matches[0]['identifier'] if matches else '')
+          " "$SDK_VER")
+          DEVICE_TYPE_ID=$(xcrun simctl list -j devicetypes | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          types = [t for t in d['devicetypes'] if t['name'].startswith('iPhone')]
+          types.sort(key=lambda t: t['name'])
+          pick = next((t for t in types if t['name'] == 'iPhone 16'), types[-1])
+          print(pick['identifier'])
+          ")
+          echo "SDK $SDK_VER runtime $RUNTIME_ID device type $DEVICE_TYPE_ID"
+          xcrun simctl create "Map2Ride CI iPhone" "$DEVICE_TYPE_ID" "$RUNTIME_ID"
+          # The destination MUST pin OS=$SDK_VER (see CallPages ios.yml).
+          xcodebuild test \
+            -project Maps2Uber.xcodeproj \
+            -scheme Maps2Uber \
+            -destination "platform=iOS Simulator,name=Map2Ride CI iPhone,OS=$SDK_VER" \
+            | tee xcodebuild-test.log
 
-      - name: Build (unsigned IPA for AltStore / TrollStore sideloading)
+      - name: Upload test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-log
+          path: xcodebuild-test.log
+          if-no-files-found: ignore
+
+      - name: Build (unsigned IPA for the free sideload channel)
         run: |
           xcodebuild -project Maps2Uber.xcodeproj \
             -scheme Maps2Uber \
@@ -34,17 +95,25 @@ jobs:
             archive
           APP_PATH="build/Maps2Uber.xcarchive/Products/Applications/Maps2Uber.app"
           mkdir -p Payload && cp -R "$APP_PATH" Payload/
-          zip -r "maps2uber-${GITHUB_REF_NAME}.ipa" Payload
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            IPA_NAME="maps2uber-${GITHUB_REF_NAME}.ipa"
+          else
+            IPA_NAME="maps2uber-unsigned.ipa"
+          fi
+          zip -r "$IPA_NAME" Payload
           rm -rf Payload
+          echo "IPA_NAME=$IPA_NAME" >> "$GITHUB_ENV"
+          ls -la "$IPA_NAME"
+          shasum -a 256 "$IPA_NAME"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: maps2uber-ipa
-          path: "maps2uber-*.ipa"
+          path: "*.ipa"
 
       - name: Attach IPA to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: "maps2uber-*.ipa"
+          files: "*.ipa"

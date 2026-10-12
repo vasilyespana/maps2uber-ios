@@ -59,34 +59,10 @@ struct Probe: Identifiable {
     }
 }
 
-// MARK: - Uber deep link builder (mirrors worker's uberLink)
-
-enum UberLinks {
-    static func deepLink(pickup: CLLocationCoordinate2D?,
-                         destLat: Double, destLng: Double,
-                         name: String, address: String) -> String {
-        var q = "action=setPickup"
-        q += "&pickup[latitude]=\(pickup?.latitude ?? 0)"
-        q += "&pickup[longitude]=\(pickup?.longitude ?? 0)"
-        q += "&dropoff[latitude]=\(destLat)"
-        q += "&dropoff[longitude]=\(destLng)"
-        q += "&dropoff[nickname]=\(enc(name))"
-        q += "&dropoff[formatted_address]=\(enc(address))"
-        return "https://m.uber.com/ul/?" + q
-    }
-
-    private static func enc(_ s: String) -> String {
-        s.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? s
-    }
-
-    /// Destination point distM meters from (lat,lng) on bearingDeg.
-    static func destPoint(lat: Double, lng: Double, bearingDeg: Double, distM: Double) -> (Double, Double) {
-        let R = 6371000.0
-        let br = bearingDeg * .pi / 180
-        let la1 = lat * .pi / 180, lo1 = lng * .pi / 180
-        let la2 = asin(sin(la1) * cos(distM / R) + cos(la1) * sin(distM / R) * cos(br))
-        let lo2 = lo1 + atan2(sin(br) * sin(distM / R) * cos(la1),
-                              cos(distM / R) - sin(la1) * sin(la2))
-        return (la2 * 180 / .pi, lo2 * 180 / .pi)
-    }
-}
+// MARK: - Link building
+//
+// Provider deep links live in RideProviders.swift (the multi-provider
+// catalog mirroring Android). Probe-circle math is GeoMath.destPoint.
+// The pre-revival UberLinks builder that lived here was Uber-only and
+// sent pickup coordinates 0,0 when the location was unknown; the
+// catalog builders omit the pickup point instead.
