@@ -32,6 +32,42 @@ struct ClickReport: Codable {
     let source: String = "ios"
 }
 
+/// Click-event payload for POST /api/click-events (worker contract,
+/// mirrors Android). Vasily directive 2026-10-12: track ALL clicks —
+/// which provider people choose (circle vs table, Uber vs Lyft),
+/// primary vs the second-provider comparison link, copy/share.
+/// No user identity, no device id: the payload has no field for them.
+struct ClickEventReport: Codable {
+    let event: String
+    let provider: String?
+    let surface: String
+    let position: String?
+    let url: String?
+    let platform: String = "ios"
+    let app_version: String?
+    let button_id: String?
+    let source: String = "ios"
+}
+
+/// Event names + surfaces (server contract: maps2uber worker).
+enum ClickEvents {
+    static let providerOpenPrimary = "provider_open_primary"
+    static let providerOpenSecond = "provider_open_second"
+    static let copyLink = "copy_link"
+    static let share = "share"
+    static let settingsDefaultProviderChange = "settings_default_provider_change"
+    static let genericButtonClick = "generic_button_click"
+
+    static let surfaceCircle = "circle"
+    static let surfaceTable = "table"
+    static let surfaceButton = "button"
+    static let surfaceSettings = "settings"
+
+    static let positionPrimary = "primary"
+    static let positionSecond = "second"
+    static let positionProbe = "probe"
+}
+
 // MARK: - App models
 
 struct Destination: Identifiable {

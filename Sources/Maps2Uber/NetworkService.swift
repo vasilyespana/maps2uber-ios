@@ -59,6 +59,19 @@ final class NetworkService {
                                link_type: linkType, probe_bearing: bearing))
     }
 
+    /// Click-event intake (provider choices & button taps). Alongside
+    /// the legacy deep-link click report above, which only ever knew
+    /// "an Uber link was tapped"; this one records WHICH provider was
+    /// chosen, on which surface, primary vs second-provider.
+    func reportClickEvent(event: String, provider: String?, surface: String,
+                          position: String?, url: String?, buttonID: String? = nil) {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        post(path: "/api/click-events",
+             body: ClickEventReport(event: event, provider: provider, surface: surface,
+                                    position: position, url: url,
+                                    app_version: version, button_id: buttonID))
+    }
+
     private func post<T: Encodable>(path: String, body: T) {
         guard let url = URL(string: base + path) else { return }
         var req = URLRequest(url: url)

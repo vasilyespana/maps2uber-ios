@@ -128,4 +128,27 @@ final class Maps2UberTests: XCTestCase {
         let meters = 6371000.0 * 2 * atan2(sqrt(a), sqrt(1 - a))
         XCTAssertEqual(meters, 100, accuracy: 1.0)
     }
+
+    // MARK: - Click-event telemetry (worker contract)
+
+    func testClickEventReportEncodesWorkerContractKeys() throws {
+        let report = ClickEventReport(
+            event: ClickEvents.providerOpenSecond, provider: "lyft",
+            surface: ClickEvents.surfaceTable, position: ClickEvents.positionSecond,
+            url: "https://maps.app.goo.gl/xyz", app_version: "1.5.0", button_id: nil)
+        let data = try JSONEncoder().encode(report)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(json["event"] as? String, "provider_open_second")
+        XCTAssertEqual(json["provider"] as? String, "lyft")
+        XCTAssertEqual(json["surface"] as? String, "table")
+        XCTAssertEqual(json["position"] as? String, "second")
+        XCTAssertEqual(json["url"] as? String, "https://maps.app.goo.gl/xyz")
+        XCTAssertEqual(json["platform"] as? String, "ios")
+        XCTAssertEqual(json["app_version"] as? String, "1.5.0")
+        XCTAssertEqual(json["source"] as? String, "ios")
+        XCTAssertNil(json["button_id"])
+        // No identity fields exist in the payload, by design.
+        XCTAssertNil(json["device_id"])
+        XCTAssertNil(json["user_id"])
+    }
 }
